@@ -1,0 +1,43 @@
+//@version=5
+indicator("NY Time Lines (Mid Vertical, 9:30 Vertical, Mid Level)", overlay=true, max_lines_count=500)
+
+// --- Customization Inputs ---
+midVertColor  = input.color(color.gray, title="Midnight Vertical Color")
+nyVertColor   = input.color(color.blue, title="9:30 AM Vertical Color")
+midHorizColor = input.color(color.gray, title="Midnight Horizontal Level Color")
+
+// --- Time Detection (Strictly New York Time) ---
+// Detect specific minutes for vertical lines
+sessMidnight = time(timeframe.period, "0000-0001", "America/New_York")
+sessNyOpen   = time(timeframe.period, "0930-0931", "America/New_York")
+
+// Detect the active trading window for the horizontal line (Midnight to 16:30)
+sessActive   = time(timeframe.period, "0000-1630", "America/New_York")
+
+// Triggers that only fire on the exact first bar of those specific times
+isNyMidnight = sessMidnight and not sessMidnight[1]
+isNyOpen     = sessNyOpen and not sessNyOpen[1]
+isHorizActive = not na(sessActive)
+
+// --- 1 & 2. Drawing Vertical Lines ---
+// We use 'close' and 'close + mintick' to guarantee the line is vertical even on zero-volume candles.
+
+// Vertical Dotted Line at Midnight
+if isNyMidnight
+    line.new(x1=bar_index, y1=close, x2=bar_index, y2=close + syminfo.mintick, extend=extend.both, color=midVertColor, style=line.style_dotted, width=1)
+
+// Vertical Solid Blue Line at 9:30 AM
+if isNyOpen
+    line.new(x1=bar_index, y1=close, x2=bar_index, y2=close + syminfo.mintick, extend=extend.both, color=nyVertColor, style=line.style_solid, width=2)
+
+
+// --- 3. Drawing Horizontal Line (Midnight Open Price until 16:30) ---
+var line midnightLevel = na
+
+if isNyMidnight
+    // Capture the open price and start the horizontal line
+    midnightLevel := line.new(x1=bar_index, y1=open, x2=bar_index, y2=open, color=midHorizColor, style=line.style_solid, width=1)
+else if isHorizActive and not na(midnightLevel)
+    // As long as the time is before 16:30 NY time, keep extending the line to the right.
+    // Once 16:30 passes, this stops updating, effectively freezing the line's end point.
+    line.set_x2(midnightLevel, bar_index)
